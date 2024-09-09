@@ -1,8 +1,8 @@
-
 const express = require('express');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const sharp = require('sharp');
 const cors = require('cors');
 const fs = require('fs');
 
@@ -54,7 +54,7 @@ app.post('/appointments', upload.single('authorization'), (req, res) => {
   res.json({ code: appointmentCode });
 });
 
-app.get("/appointments", (_req, res) => {
+app.get("/appointments", async (_req, res) => {
   console.log("Obtener citas.")
   const { start, end } = _req.query;
 
@@ -71,28 +71,43 @@ app.get("/appointments", (_req, res) => {
     });
   }
 
-  const filteredAppointments = filterAppointments(start, end)
-  
-  for(let x in filteredAppointments){
-    console.log(filteredAppointments[x].authorization)
-    const imagePath = filteredAppointments[x].authorization;
-    const imageData = fs.readFileSync(imagePath);
-    const encodedImage = imageData.toString('base64');
-    filteredAppointments[x].authorization = encodedImage;
-    console.log(filteredAppointments[x].authorization)
+  const filteredAppointments = filterAppointments(start, end);
+
+  const processedAppointments = await Promise.all(filteredAppointments.map(async (appointment) => {
+    try {
+
+      const imagePath = path.resolve(appointment.authorization);
+
+      if (!fs.existsSync(imagePath) || fs.statSync(imagePath).size === 0) {
+        console.error(`El archivo ${imagePath} no existe o está vacío.`);
+        appointment.authorization = null;
+        return appointment;
+      }
+
+      const resizedImageBuffer = await sharp(imagePath)
+        .resize({ width: 200 }) 
+        .jpeg({ quality: 40 }) 
+        .toBuffer();
+
+      const base64Image = resizedImageBuffer.toString('base64');
+      appointment.authorization = base64Image;
+
+      return appointment;
+    } catch (error) {
+      console.error(`Error al procesar la imagen para la cita con codigo ${appointment.code}`, error);
+      appointment.authorization = null; 
+      return appointment;
+    }
+  }));
+
+  if(processedAppointments.length > 0) {
+    console.log("Citas encontradas");
+    res.json(processedAppointments);
+  } else {
+    console.log("Citas no encontradas");
+    res.status(400).json({message: `No hay citas asignadas dentro de ${start} y ${end}.`});
   }
-
-  if(filteredAppointments.size > 0){
-    console.log("Citas encontradas")
-    res.json(filteredAppointments);
-  }else{
-    console.log("Citas no encontradas")
-    res.status(400).json({message: `No hay citas asignadas dentro de ${start} y ${end}.`})
-  }
-
-  console.log(filteredAppointments)
-})
-
+});
 
 app.delete("/appointments", (req, res) => {
   const { code } = req.query;
