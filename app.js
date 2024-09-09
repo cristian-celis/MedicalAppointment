@@ -3,14 +3,15 @@ const express = require('express');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const cors = require('cors');
 const fs = require('fs');
 
 const app = express();
+app.use(cors());
 const PORT = 3000;
 
+const appointments = [];
 
-
-// Configurar Multer para manejar archivos
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = './uploads';
@@ -21,16 +22,14 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
-    cb(null, `${uuidv4()}${ext}`); // Generar codigo unico
+    cb(null, `${uuidv4()}${ext}`);
   }
 });
 
 const upload = multer({ storage });
 
-const appointments = []; // Almacenar citas en memoria
-
-// Crear cita medica
 app.post('/appointments', upload.single('authorization'), (req, res) => {
+  console.log("Agregar cita.")
   const { cc, date } = req.body;
   const file = req.file;
 
@@ -50,44 +49,58 @@ app.post('/appointments', upload.single('authorization'), (req, res) => {
 
   appointments.push(newAppointment);
 
+  console.log("Cita agregada.")
+
   res.json({ code: appointmentCode });
 });
 
 app.get("/appointments", (_req, res) => {
-  const { date1, date2 } = _req.query;
-  if (!date1 || !date2) {
+  console.log("Obtener citas.")
+  const { start, end } = _req.query;
+
+  if (!start || !end) {
     return res.status(400).json({ message: 'Falta rango de fechas' });
   }
 
-  function filterAppointments(date1,date2){
-    const start = new Date(date1);
-    const end = new Date(date2);
+  function filterAppointments(start, end) {
+    const startDate = new Date(start);
+    const endDate = new Date(end);
     return appointments.filter(item => {
       const itemDate = new Date(item.date);
-      return itemDate >= start && itemDate <= end;
-  });
+      return itemDate >= startDate && itemDate <= endDate;
+    });
   }
-  const filteredAppointments= filterAppointments(date1,date2)
 
-  
-  res.json(filteredAppointments);
+  const filteredAppointments = filterAppointments(start, end)
+
+  if(filteredAppointments.size > 0){
+    console.log("Citas encontradas")
+    res.json(filteredAppointments);
+  }else{
+    console.log("Citas no encontradas")
+    res.status(400).json({message: `No hay citas asignadas dentro de ${start} y ${end}.`})
+  }
+
+  console.log(filteredAppointments)
 })
 
- 
+
 app.delete("/appointments", (req, res) => {
-  const {code} = req.query; 
+  const { code } = req.query;
+  console.log(`Cancelar cita con codigo: ${code}`)
   if (!code) {
     return res.status(400).json({ message: 'Falta codigo de cita' });
   }
 
   const index = appointments.findIndex(item => item.code === code);
-S
 
-  if(index !== -1){
-    appointments[index].status=false;
-    return res.status(400).json({ message: "cita "+code+" cancelada con exito"});
-  } else{
-    return res.status(400).json({ message: 'cita no encontrada' });
+  if (index !== -1) {
+    appointments[index].status = false;
+    console.log("Cita cancelada.")
+    return res.status(400).json({ message: `Cita con codigo "${code}" cancelada con exito` });
+  } else {
+    console.log("Cita no encontrada.")
+    return res.status(400).json({ message: `Cita con codigo "${code}" no encontrada` });
   }
 })
 
