@@ -72,6 +72,15 @@ app.get("/appointments", (_req, res) => {
   }
 
   const filteredAppointments = filterAppointments(start, end)
+  
+  for(let x in filteredAppointments){
+    console.log(filteredAppointments[x].authorization)
+    const imagePath = filteredAppointments[x].authorization;
+    const imageData = fs.readFileSync(imagePath);
+    const encodedImage = imageData.toString('base64');
+    filteredAppointments[x].authorization = encodedImage;
+    console.log(filteredAppointments[x].authorization)
+  }
 
   if(filteredAppointments.size > 0){
     console.log("Citas encontradas")
