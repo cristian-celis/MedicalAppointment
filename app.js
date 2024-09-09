@@ -73,40 +73,16 @@ app.get("/appointments", async (_req, res) => {
 
   const filteredAppointments = filterAppointments(start, end);
 
-  const processedAppointments = await Promise.all(filteredAppointments.map(async (appointment) => {
-    try {
+  res.json(filteredAppointments);
+  console.log("Enviado")
+});
 
-      const imagePath = path.resolve(appointment.authorization);
-
-      if (!fs.existsSync(imagePath) || fs.statSync(imagePath).size === 0) {
-        console.error(`El archivo ${imagePath} no existe o está vacío.`);
-        appointment.authorization = null;
-        return appointment;
-      }
-
-      const resizedImageBuffer = await sharp(imagePath)
-        .resize({ width: 200 }) 
-        .jpeg({ quality: 40 }) 
-        .toBuffer();
-
-      const base64Image = resizedImageBuffer.toString('base64');
-      appointment.authorization = base64Image;
-
-      return appointment;
-    } catch (error) {
-      console.error(`Error al procesar la imagen para la cita con codigo ${appointment.code}`, error);
-      appointment.authorization = null; 
-      return appointment;
-    }
-  }));
-
-  if(processedAppointments.length > 0) {
-    console.log("Citas encontradas");
-    res.json(processedAppointments);
-  } else {
-    console.log("Citas no encontradas");
-    res.status(400).json({message: `No hay citas asignadas dentro de ${start} y ${end}.`});
-  }
+app.get("/images", async(_req,res)=>{
+  console.log(_req.query);
+  const {imagePath} = _req.query;
+  const filePath = path.join(__dirname, imagePath.replace(/\\/g, '/'));
+  console.log(filePath);
+  res.sendFile(filePath)
 });
 
 app.delete("/appointments", (req, res) => {
@@ -132,4 +108,3 @@ app.delete("/appointments", (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server listening on http://localhost:${PORT}`);
 });
-
